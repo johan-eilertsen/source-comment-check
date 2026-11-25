@@ -123,6 +123,38 @@ class CommentPolicyTests(unittest.TestCase):
         )
         self.assert_comments("page.html", source, [(2, 2), (5, 5), (7, 7)])
 
+    def test_names_and_config_language_rules(self):
+        json_input = (
+            '{"url":"https://example.test/\\\"/* literal */",\n'
+            ' // biome-ignore lint/suspicious/noDoubleEquals: tool fixture\n'
+            ' "key": "a//b", /* real\n continued */\n'
+            ' "more": 1 // another\n}\n'
+        )
+        for path in ("tool.jsonc", "dir/tsconfig.json", "tsconfig.node.json", "jsconfig.web.json",
+                     "biome.json", "deno.json"):
+            with self.subTest(path=path):
+                self.assert_comments(path, json_input, [(3, 4), (5, 5)])
+        for path in ("package.json", "mytsconfig.json", "tsconfig-other.json"):
+            self.assert_comments(path, json_input, [])
+        self.assert_comments("Brewfile", 'brew "foo#bar" # explain\n', [(1, 1)])
+        self.assert_comments(".bashrc", 'alias a="word#part"\n# explain\n', [(2, 2)])
+        toml = (
+            '#:schema https://example.test/schema.json\n'
+            'url = "https://example.test/#fragment" # true\n'
+            'example = """start\n# part of the string\nend"""\n'
+            "literal = '# content'\n# true\n"
+        )
+        self.assert_comments("dir/pyproject.toml", toml, [(2, 2), (7, 7)])
+
+    def test_extensionless_scripts_use_the_interpreter_in_the_file(self):
+        for header in ("#!/usr/bin/python3.13 -I", "#!/usr/bin/env python3", "#!/usr/bin/env -S python -I"):
+            self.assert_comments("bin/format", header + '\nx = "#value" # real\n', [(2, 2)])
+        for header in ("#!/bin/sh", "#!/usr/bin/bash -eu", "#!/usr/bin/env bash"):
+            self.assert_comments("bin/format", header + "\ncat <<'EOF'\n# data\nEOF\n# real\n", [(5, 5)])
+        for header in ("#!/usr/bin/awk -f", "#!/usr/bin/env python-sample", "#!/usr/bin/printf python3", "documentation"):
+            self.assert_comments("tool", header + "\n# data", [])
+        self.assert_comments("vendor/tool", "#!/bin/sh\n# generated\n", [])
+
     def test_other_languages(self):
         cases = {
             "theme.css": ('p::before{content:"/* literal */"} /* real */', [(1, 1)]),

@@ -135,6 +135,26 @@ class CommentCheckTests(unittest.TestCase):
         self.assertIn("api/value.ts:3:", error)
         self.assertIn("api/value.ts:4:", error)
 
+    def test_shebang_change_reclassifies_an_unchanged_data_line(self):
+        self.stage("bin/run", "#!/bin/bash\ncat <<'END'\n# becomes code\nEND\n")
+        base = self.commit()
+        self.stage("bin/run", "#!/usr/bin/env python3\nvalue = 1\n# becomes code\n")
+        error = self.run_check("--staged", status=1)
+        self.assertIn("bin/run:3:", error)
+        head = self.commit()
+        self.stage("bin/run", "plain file\n")
+        self.assertIn("bin/run:3:", self.run_check("--base", base, "--head", head, status=1))
+
+    def test_unknown_extensionless_and_binary_files_are_not_source(self):
+        (self.root / "data").write_bytes(b"\x7fELF\0" + b"\xff" * 20000)
+        (self.root / "binary").write_bytes(b"#!/usr/bin/env python3\n" + b"a" * 10000 + b"\0\xff")
+        self.git("add", "--", "data", "binary")
+        self.stage("script", "#!/usr/bin/awk -f\n# data\n")
+        self.run_check("--staged", status=0)
+        self.commit()
+        self.stage("script", "#!/bin/sh\n# data\n")
+        self.assertIn("script:2:", self.run_check("--staged", status=1))
+
     def test_unusual_filename(self):
         name = "-line\nname.js"
         self.stage(name, "// new comment\n")

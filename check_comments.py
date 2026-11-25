@@ -7,12 +7,14 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-from comment_policy import executable_code_path, prohibited_comments
+from comment_policy import executable_code_path, path_language, prohibited_comments, shebang_language
+
+
+GIT_COMMAND = ["git", "--no-optional-locks", "-c", "core.fsmonitor=false"]
 
 
 def git(*args, data=None):
-    command = ["git", "--no-optional-locks", "-c", "core.fsmonitor=false", *args]
-    result = subprocess.run(command, input=data, capture_output=True)
+    result = subprocess.run([*GIT_COMMAND, *args], input=data, capture_output=True)
     if result.returncode:
         message = result.stderr.decode(errors="replace").strip()
         raise ValueError(message or f"Git exited with status {result.returncode}")
@@ -80,12 +82,30 @@ def unchanged_ranges(old_blob, new_blob):
 
 
 def read_source(oid, path):
-    data = git("cat-file", "blob", oid)
+    inspect_shebang = path_language(path) == "shebang"
+    if inspect_shebang:
+        with subprocess.Popen([*GIT_COMMAND, "cat-file", "blob", oid], stdout=subprocess.PIPE) as process:
+            prefix = process.stdout.read(8192)
+            first_line = prefix[:1024].partition(b"\n")[0].decode("ascii", errors="replace")
+            if not prefix and process.wait():
+                raise ValueError(f"Cannot read Git blob for {path!r}")
+            if b"\0" in prefix or not shebang_language(first_line):
+                process.stdout.close()
+                return ""
+            data = prefix + process.stdout.read()
+            if process.wait():
+                raise ValueError(f"Cannot read Git blob for {path!r}")
+        if b"\0" in data:
+            return ""
+    else:
+        data = git("cat-file", "blob", oid)
     if b"\0" in data:
         raise ValueError(f"Cannot check binary content at {path!r} as source code")
     try:
         return data.decode("utf-8-sig")
     except UnicodeDecodeError as error:
+        if inspect_shebang:
+            return ""
         raise ValueError(f"Cannot read {path!r} as UTF-8") from error
 
 

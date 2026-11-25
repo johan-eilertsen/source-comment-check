@@ -1,0 +1,30 @@
+name: Check changed source comments
+description: Report explanatory comments introduced in a pull request or push
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+        fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: '3.13'
+    - name: Check changed source
+      shell: bash
+      working-directory: ${{ runner.temp }}
+      env:
+        CHECK_SOURCE: ${{ github.action_path }}
+        BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        HEAD_REVISION: ${{ github.sha }}
+      run: |
+        set -eu
+        env_dir="$(mktemp -d)"
+        trap 'rm -rf -- "$env_dir"' EXIT
+        python -I -m venv "$env_dir"
+        "$env_dir/bin/python" -I -m pip --isolated install --disable-pip-version-check --only-binary=:all: -r "$CHECK_SOURCE/requirements.txt"
+        cd "$GITHUB_WORKSPACE"
+        if [[ "$BASE" =~ ^0+$ ]]; then
+          BASE="$(git hash-object -w -t tree --stdin </dev/null)"
+        fi
+        "$env_dir/bin/python" -EsB "$CHECK_SOURCE/check_comments.py" --base "${BASE:?missing comparison base}" --head "$HEAD_REVISION"

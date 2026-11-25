@@ -1,0 +1,1 @@
+Read README.md and the assigned issue before changing the checker. Read CODING_STANDARDS.md for review. Use GLOSSARY.md and docs/agents/domain.md for changes to the meaning of a finding. For tracking and triage use docs/agents/issue-tracker.md and docs/agents/triage-labels.md. For design decisions see docs/adr/README.md.

@@ -162,12 +162,17 @@ class _HtmlComments(HTMLParser):
                 self.comments.append((language, line + offset, text))
 
 
-ACTION_VERSION = re.compile(r"#\s*v?\d+(?:\.\d+){0,3}(?:[-+][\w.-]+)?\s*")
-PINNED_ACTION = re.compile(r"[\w.-]+/[\w.-]+(?:/[\w./-]+)?@[0-9a-fA-F]{40}")
+ACTION_REPOSITORY = r"[\w.-]+/[\w.-]+"
+ACTION_VERSION_NOTE = re.compile(
+    rf"#\s*(?:pin @|@|tag=|https://github\.com/(?P<repo>{ACTION_REPOSITORY})/releases/tag/)?"
+    r"v?\d+(?:\.\d+){0,3}(?:[-+][\w.-]+)?\s*"
+)
+PINNED_ACTION = re.compile(rf"(?P<repo>{ACTION_REPOSITORY})(?:/[\w./-]+)?@[0-9a-fA-F]{{40}}")
 
 
 def _workflow_version_note(comment):
-    if not ACTION_VERSION.fullmatch(comment.text()):
+    note = ACTION_VERSION_NOTE.fullmatch(comment.text())
+    if not note:
         return False
     pair = comment.prev()
     if not pair or pair.kind() != "block_mapping_pair" or pair.range().end.line != comment.range().start.line:
@@ -175,7 +180,8 @@ def _workflow_version_note(comment):
     key, value = pair.field("key"), pair.field("value")
     if not key or key.text().strip("\"'") != "uses" or not value:
         return False
-    if not PINNED_ACTION.fullmatch(value.text().strip("\"'")):
+    action = PINNED_ACTION.fullmatch(value.text().strip("\"'"))
+    if not action or (note["repo"] and note["repo"].casefold() != action["repo"].casefold()):
         return False
     keys = [node.field("key") for node in comment.ancestors() if node.kind() == "block_mapping_pair"]
     path = [key.text().strip("\"'") if key else None for key in reversed(keys)]

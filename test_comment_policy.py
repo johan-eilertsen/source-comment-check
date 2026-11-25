@@ -33,6 +33,22 @@ class CommentPolicyTests(unittest.TestCase):
         self.assert_comments(".github/workflows/build.yml", source, [(6, 6), (7, 7), (8, 8)])
         self.assert_comments("fixtures/build.yml", source, [(4, 4), (6, 6), (7, 7), (8, 8), (10, 10)])
 
+    def test_workflow_version_prefixes(self):
+        for note in ("v2.1", "2.1", "@v2.1", "pin @v2.1", "tag=v2.1"):
+            source = "jobs:\n  build:\n    steps:\n      - uses: sample/tool@" + "a" * 40 + " # " + note + "\n"
+            self.assert_comments(".github/workflows/build.yml", source, [])
+
+    def test_workflow_version_link_must_point_to_the_pinned_repository(self):
+        action = "sample/tool/step@" + "a" * 40
+        prefix = "jobs:\n  build:\n    steps:\n"
+        for repo, suffix, expected in [
+            ("sample/tool", "v2.1", []),
+            ("sample/other", "v2.1", [(4, 4)]),
+            ("sample/tool", "v2.1 is preferred", [(4, 4)]),
+        ]:
+            source = prefix + f"      - uses: {action} # https://github.com/{repo}/releases/tag/{suffix}\n"
+            self.assert_comments(".github/workflows/release.yaml", source, expected)
+
     def test_jsx_text_is_not_javascript(self):
         source = (
             'const A = () => <span title="/* string */">https://example.test/\n'

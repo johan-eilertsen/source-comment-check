@@ -81,6 +81,7 @@ JS_DIRECTIVES = re.compile(
     rf"(?:{JS_LINTER}|biome-ignore\s+(?:lint|assist)/[\w-]+(?:/[\w-]+)*:\s*\S[^\n]*|@ts-(?:no)?check|@ts-(?:ignore|expect-error)(?:[:\s].*)?"
     r"|[#@]__PURE__|[#@]__NO_SIDE_EFFECTS__|[#@]\s*source(?:Mapping)?URL=\S+"
     r"|(?:istanbul|c8|v8) ignore (?:next(?: \d+)?|if|else|file|start|stop|end)"
+    r"|@vitest-environment[ \t]+(?:node|jsdom|happy-dom|edge-runtime)"
     r"|prettier-ignore|@jsx(?:ImportSource|Runtime|Frag)?\s+\S+"
     r"|/\s*<reference\s+(?:path|types|lib|no-default-lib)=[^>]+/\s*>)"
 )

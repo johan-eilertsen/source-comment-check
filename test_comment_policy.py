@@ -75,6 +75,20 @@ class CommentPolicyTests(unittest.TestCase):
         )
         self.assert_comments("index.ts", source, [(6, 6), (12, 12), (13, 13), (14, 14)])
 
+    def test_vitest_builtin_environment_directives(self):
+        for environment in ("node", "jsdom", "happy-dom", "edge-runtime"):
+            with self.subTest(environment=environment):
+                self.assert_comments("sample.test.ts", f"// @vitest-environment {environment}\n", [])
+        source = (
+            "/* @vitest-environment node */\n"
+            "// @vitest-environment\n"
+            "// @vitest-environment node for local tests\n"
+            "// Use @vitest-environment jsdom\n"
+            "// @vitest-environments node\n"
+        )
+        self.assert_comments("sample.test.js", source, [(2, 2), (3, 3), (4, 4), (5, 5)])
+        self.assert_comments("sample.py", "# @vitest-environment node\n", [(1, 1)])
+
     def test_licenses_do_not_exempt_ordinary_prose(self):
         source = (
             "/* SPDX-License-Identifier: MIT */\n"

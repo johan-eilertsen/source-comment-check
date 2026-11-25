@@ -239,6 +239,11 @@ def prohibited_comments(path: str, source: str, *, documentation_input=False):
     comments = _lexed_comments if language in {"postgresql", "powershell"} else _syntax_comments
     license_lines = _license_header_lines(source)
     for syntax, first, text in comments(language, source):
+        if syntax == "swift" and first == 1 and PurePosixPath(path).name == "Package.swift":
+            if re.fullmatch(r"//\s*swift-tools-version:\s*\d+\.\d+(?:\.\d+)?\s*", text):
+                continue
+        if syntax in JAVASCRIPT and text.startswith("/*") and _body(text) == "@vite-ignore":
+            continue
         if documentation_input and language in JAVASCRIPT and re.match(r"/\*\*(?!\*)", text):
             continue
         if first not in license_lines and not _technical(syntax, text, first):

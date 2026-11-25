@@ -139,6 +139,9 @@ class CommentPolicyTests(unittest.TestCase):
                 self.assert_comments(path, source, expected)
 
     def test_native_doc_markers_are_language_specific(self):
+        self.assert_comments("lib/Package.swift", "// swift-tools-version: 6.0\n// explanation", [(2, 2)])
+        self.assert_comments("view.swift", "// swift-tools-version: 6.0", [(1, 1)])
+        self.assert_comments("import.ts", "import(/* @vite-ignore */ url);\n// @vite-ignore this", [(2, 2)])
         self.assert_comments("a.kt", "/// prose\n/*!" + " prose */", [(1, 1), (2, 2)])
         self.assert_comments("a.swift", "//! prose\n//// prose", [(1, 1), (2, 2)])
         self.assert_comments("a.rs", "/// API docs\n//// prose\n/*** ordinary */", [(2, 2), (3, 3)])

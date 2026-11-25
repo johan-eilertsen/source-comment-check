@@ -16,6 +16,23 @@ class CommentPolicyTests(unittest.TestCase):
         )
         self.assert_comments("core/graph.mjs", source, [(3, 3), (4, 5), (5, 5)])
 
+    def test_workflow_versions_attached_to_action_references(self):
+        sha = "a" * 40
+        source = (
+            "jobs:\n"
+            "  build:\n"
+            "    steps:\n"
+            f'      - uses: "sample/tool@{sha}" # v2.1.0\n'
+            "        with:\n"
+            f"          uses: sample/tool@{sha} # v2\n"
+            f"      - uses: sample/tool@{sha} # v2 is preferred\n"
+            "        # v2\n"
+            "  call:\n"
+            f"    uses: sample/workflows/.github/workflows/build.yml@{sha} # v2\n"
+        )
+        self.assert_comments(".github/workflows/build.yml", source, [(6, 6), (7, 7), (8, 8)])
+        self.assert_comments("fixtures/build.yml", source, [(4, 4), (6, 6), (7, 7), (8, 8), (10, 10)])
+
     def test_jsx_text_is_not_javascript(self):
         source = (
             'const A = () => <span title="/* string */">https://example.test/\n'

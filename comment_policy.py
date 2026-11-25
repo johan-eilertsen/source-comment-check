@@ -162,7 +162,28 @@ class _HtmlComments(HTMLParser):
                 self.comments.append((language, line + offset, text))
 
 
-def _syntax_comments(language, source):
+ACTION_VERSION = re.compile(r"#\s*v?\d+(?:\.\d+){0,3}(?:[-+][\w.-]+)?\s*")
+PINNED_ACTION = re.compile(r"[\w.-]+/[\w.-]+(?:/[\w./-]+)?@[0-9a-fA-F]{40}")
+
+
+def _workflow_version_note(comment):
+    if not ACTION_VERSION.fullmatch(comment.text()):
+        return False
+    pair = comment.prev()
+    if not pair or pair.kind() != "block_mapping_pair" or pair.range().end.line != comment.range().start.line:
+        return False
+    key, value = pair.field("key"), pair.field("value")
+    if not key or key.text().strip("\"'") != "uses" or not value:
+        return False
+    if not PINNED_ACTION.fullmatch(value.text().strip("\"'")):
+        return False
+    keys = [node.field("key") for node in comment.ancestors() if node.kind() == "block_mapping_pair"]
+    path = [key.text().strip("\"'") if key else None for key in reversed(keys)]
+    return (len(path) == 2 and path[0] == "jobs"
+            or len(path) == 3 and path[0] == "jobs" and path[2] == "steps")
+
+
+def _syntax_comments(language, source, *, workflow=False):
     if language == "html":
         parser = _HtmlComments()
         parser.feed(source)
@@ -174,6 +195,8 @@ def _syntax_comments(language, source):
     root = SgRoot(source, language).root()
     kinds = COMMENT_KINDS.get(language, ("comment",))
     for match in root.find_all({"rule": {"any": [{"kind": kind} for kind in kinds]}}):
+        if workflow and _workflow_version_note(match):
+            continue
         yield language, match.range().start.line + 1, match.text().rstrip("\r\n")
 
 
@@ -300,7 +323,11 @@ def prohibited_comments(path: str, source: str, *, documentation_input=False):
         return
     if GENERATED_HEADER.match(source.lstrip("\ufeff")):
         return
-    comments = _lexed_comments if language in LEXERS else _syntax_comments
+    if language in LEXERS:
+        comments = _lexed_comments(language, source)
+    else:
+        workflow = language == "yaml" and PurePosixPath(path).parent == PurePosixPath(".github/workflows")
+        comments = _syntax_comments(language, source, workflow=workflow)
     license_lines = _license_header_lines(source)
     directive_count = 0
     if language == "dockerfile":
@@ -308,7 +335,7 @@ def prohibited_comments(path: str, source: str, *, documentation_input=False):
             if not DOCKER_DIRECTIVE.fullmatch(line):
                 break
             directive_count += 1
-    for syntax, first, text in comments(language, source):
+    for syntax, first, text in comments:
         if first <= directive_count:
             continue
         if syntax == "swift" and first == 1 and PurePosixPath(path).name == "Package.swift":

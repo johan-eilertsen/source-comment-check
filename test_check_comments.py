@@ -47,6 +47,53 @@ class CommentCheckTests(unittest.TestCase):
         (self.root / "app.js").unlink()
         self.assertIn("app.js:1:", self.run_check("--staged", status=1))
 
+    def test_literal_interpreter_input_uses_shell_file_line_numbers(self):
+        source = """python3 - "$1" <<'PROGRAM'
+value = "# ordinary text"
+value += "x"  # noqa: E501
+# explain the implementation
+PROGRAM
+result=$(node - arg 2>/dev/null <<-"SCRIPT"
+\tconst sample = "// text";
+\t/* explain the choice
+\t   in two lines */
+\tSCRIPT
+)
+"""
+        self.stage("run.sh", source)
+        output = self.run_check("--staged", status=1)
+        self.assertEqual([line.split(":")[2] for line in output.splitlines()], ["4", "8"])
+        self.commit()
+        self.stage("run.sh", "true\n" + source)
+        self.run_check("--staged", status=0)
+        self.stage("run.sh", source.replace("two lines", "several lines"))
+        self.assertIn("run.sh:8:", self.run_check("--staged", status=1))
+
+    def test_script_input_and_regular_heredoc_data_are_distinct(self):
+        source = """cat <<'PY'
+# literal output
+PY
+python3 data.py <<'INPUT'
+# input data
+INPUT
+node -e 'process.stdin.resume()' <<'DATA'
+// input data
+DATA
+python3 3<<'VALUE'
+# another descriptor
+VALUE
+node - <<'VALUE' < input.txt
+// replaced input
+VALUE
+python3 - <<PY
+# template that the shell expands
+PY
+"""
+        self.stage("run.sh", source)
+        self.run_check("--staged", status=0)
+        self.stage("run.sh", source.replace("cat <<'PY'", "python3 <<'PY'"))
+        self.assertIn("run.sh:2:", self.run_check("--staged", status=1))
+
     def test_shifted_legacy_comment_and_deletion_pass(self):
         self.stage("src/app.js", "// old comment\nexport const a = 1;\n")
         self.stage("removed.js", "// old comment\n")

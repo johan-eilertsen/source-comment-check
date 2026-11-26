@@ -85,9 +85,14 @@ JS_DIRECTIVES = re.compile(
     r"|prettier-ignore|@jsx(?:ImportSource|Runtime|Frag)?\s+\S+"
     r"|/\s*<reference\s+(?:path|types|lib|no-default-lib)=[^>]+/\s*>)"
 )
+PY_RULE_CODE = r"[A-Z]+[0-9]+"
+PY_NOQA = re.compile(
+    r"(?i:(?:(?:ruff|flake8):[ \t]*)?noqa)"
+    rf"(?:[ \t]*:[ \t]*{PY_RULE_CODE}(?:(?:[ \t]*,[ \t]*|[ \t]+){PY_RULE_CODE})*"
+    r"(?:[ \t]*,)?(?:[ \t]+(?:#|--?)[ \t]+\S.*)?)?"
+)
 PY_DIRECTIVES = re.compile(
-    r"(?:noqa(?:\s*:\s*[\w]+(?:[\s,]+[\w]+)*)?|(?:ruff|flake8):\s*noqa(?:\s*:\s*[\w, ]+)?"
-    r"|type:\s*ignore(?:\[[\w, -]+\])?|(?:pyright|mypy|pylint):\s*[\w-]+[=:][\w, .-]+"
+    r"(?:type:\s*ignore(?:\[[\w, -]+\])?|(?:pyright|mypy|pylint):\s*[\w-]+[=:][\w, .-]+"
     r"|fmt:\s*(?:on|off|skip)|pragma:\s*(?:no cover|no branch)|nosec(?:\s+[B\d, ]+)?)"
 )
 ENCODING = re.compile(r"(?:-\*-\s*)?coding[:=]\s*[-\w.]+(?:\s*-\*-)?")
@@ -264,7 +269,7 @@ def _technical(language, text, line):
             return True
         return JS_DIRECTIVES.fullmatch(body) is not None
     if language == "python":
-        return bool(PY_DIRECTIVES.fullmatch(body) or _type_annotation(body)
+        return bool(PY_NOQA.fullmatch(body) or PY_DIRECTIVES.fullmatch(body) or _type_annotation(body)
                     or (line <= 2 and ENCODING.fullmatch(body)))
     if language == "css":
         return bool(re.fullmatch(STYLELINT, body) or body == "prettier-ignore"

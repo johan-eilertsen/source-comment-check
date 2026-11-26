@@ -332,6 +332,42 @@ def _license_header_lines(source):
     return recognized
 
 
+def _literal_program_violations(source):
+    root = SgRoot(source, "bash").root()
+    lines = source.split("\n")
+    for redirect in root.find_all({"rule": {"kind": "heredoc_redirect"}}):
+        statement = redirect.parent()
+        command = statement.field("body") if statement.kind() == "redirected_statement" else None
+        if not command or command.kind() != "command":
+            continue
+        name, argument = command.field("name"), command.field("argument")
+        if not name or (argument and argument.text() != "-"):
+            continue
+        if not re.fullmatch(r"(?:/[\w.+-]+)*/?[\w.-]+", name.text()):
+            continue
+        executable = name.text().rsplit("/", 1)[-1]
+        if executable == "node":
+            filename = "stdin.js"
+        elif re.fullmatch(r"python(?:3(?:\.\d+)?)?", executable):
+            filename = "stdin.py"
+        else:
+            continue
+        parts = {child.kind(): child for child in redirect.children()}
+        if parts.keys() - {"<<", "<<-", "heredoc_start", "heredoc_body", "heredoc_end", "file_descriptor"}:
+            continue
+        if "file_descriptor" in parts and parts["file_descriptor"].text() != "0":
+            continue
+        start, end = parts.get("heredoc_start"), parts.get("heredoc_end")
+        if not start or not end or not re.fullmatch(r"""(['"])[\w.-]+\1""", start.text()):
+            continue
+        first = start.range().end.line + 1
+        body = lines[first:end.range().start.line]
+        if "<<-" in parts:
+            body = [line.lstrip("\t") for line in body]
+        for begin, stop in prohibited_comments(filename, "\n".join(body) + "\n"):
+            yield first + begin, first + stop
+
+
 def prohibited_comments(path: str, source: str, *, documentation_input=False):
     language = path_language(path)
     if language == "shebang":
@@ -340,6 +376,8 @@ def prohibited_comments(path: str, source: str, *, documentation_input=False):
         return
     if GENERATED_HEADER.match(source.lstrip("\ufeff")):
         return
+    if language == "bash" and "<<" in source:
+        yield from _literal_program_violations(source)
     if language in LEXERS:
         comments = _lexed_comments(language, source)
     else:

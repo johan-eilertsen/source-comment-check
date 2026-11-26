@@ -51,6 +51,8 @@ An ordinary explanation such as `// Keep the old selection` is reported if the c
 
 Supported sources include JavaScript, TypeScript, JSX, TSX, Python, shell, CSS, HTML, Swift, Ruby, Go, Rust, Kotlin, YAML, PostgreSQL and PowerShell. The check also recognizes Python and shell commands by their interpreter line, Brewfiles, TOML and common JSON-with-comments configurations. Dockerfile support uses a prebuilt grammar on Apple Silicon and x86-64 Linux, including the GitHub runner. A Dockerfile change on a platform without that grammar reports the missing capability. Conventional generated and vendored paths are skipped.
 
+A shell script can also contain a Python or Node program in a quoted here-document. For a direct interpreter invocation with no arguments or a leading `-`, the checker applies the embedded language's rules and reports lines in the shell file. Here-documents passed to data consumers and templates expanded by the shell remain literal input for this check.
+
 For a different policy, [Lauren Tan’s review skill](https://github.com/cursor/plugins/tree/main/pstack/skills/no-comments) helps decide which comments to remove. [Matt Pocock’s project rule](https://github.com/mattpocock/course-video-manager/blob/887f7904647a41ab997911817b60bd90e9304680/lint/rules/no-comments.ts) shows how to enforce a comment policy in a JavaScript or TypeScript project. This tool uses the same check across supported languages and Git repositories.
 
 ## Development

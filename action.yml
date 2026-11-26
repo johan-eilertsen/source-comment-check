@@ -24,7 +24,10 @@ runs:
         python -I -m venv "$env_dir"
         "$env_dir/bin/python" -I -m pip --isolated install --disable-pip-version-check --only-binary=:all: -r "$CHECK_SOURCE/requirements.txt"
         cd "$GITHUB_WORKSPACE"
-        if [[ "$BASE" =~ ^0+$ ]]; then
+        if [[ "$GITHUB_EVENT_NAME" == pull_request && "$GITHUB_REF" == refs/pull/*/merge ]]; then
+          git rev-parse --verify "${HEAD_REVISION}^2^{commit}" >/dev/null
+          BASE="${HEAD_REVISION}^1"
+        elif [[ "$BASE" =~ ^0+$ ]]; then
           BASE="$(git hash-object -w -t tree --stdin </dev/null)"
         fi
         "$env_dir/bin/python" -EsB "$CHECK_SOURCE/check_comments.py" --base "${BASE:?missing comparison base}" --head "$HEAD_REVISION"

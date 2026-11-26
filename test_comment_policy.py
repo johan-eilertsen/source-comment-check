@@ -146,6 +146,24 @@ class CommentPolicyTests(unittest.TestCase):
         )
         self.assert_comments("main.py", source, [(6, 6), (7, 7), (8, 8), (9, 9)])
 
+    def test_noqa_accepts_rule_codes_and_explicit_reasons(self):
+        accepted = [
+            "# noqa", "# NoQa: F401", "# flake8: noqa", "# RUFF: NOQA: E501, F401",
+            "# noqa: E501 F401", "# noqa: F401,", "# noqa: BLE001 - report this item later",
+            "# noqa: F401  # used at runtime", "# noqa: F401 -- loaded on demand",
+        ]
+        reported = [
+            "# noqa: this is explanatory prose", "# ruff: noqa: an explanation",
+            "# noqa: F401 extra words", "# noqa: F", "# noqa: lowercase123",
+            "# noqa: 123", "# noqa: - just words", "# noqa without codes",
+        ]
+        for directive in accepted:
+            with self.subTest(directive=directive):
+                self.assert_comments("example.py", directive + "\n", [])
+        for prose in reported:
+            with self.subTest(prose=prose):
+                self.assert_comments("example.py", prose + "\n", [(1, 1)])
+
     def test_postgres_nested_comments_and_quoted_markers(self):
         source = (
             "-- migrate:up\nSELECT '--literal', $tag$/* text */$tag$;\n"

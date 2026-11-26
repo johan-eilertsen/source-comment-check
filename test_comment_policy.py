@@ -225,6 +225,22 @@ class CommentPolicyTests(unittest.TestCase):
         self.assert_comments("a.swift", "//! prose\n//// prose", [(1, 1), (2, 2)])
         self.assert_comments("a.rs", "/// API docs\n//// prose\n/*** ordinary */", [(2, 2), (3, 3)])
 
+    def test_next_declaration_generator_notice(self):
+        reference = '/// <reference types="next" />'
+        notice = '// NOTE: This file should not be edited'
+        for router in ('app', 'pages'):
+            docs = f'// see https://nextjs.org/docs/{router}/api-reference/config/typescript for more information.'
+            for newline in ('\n', '\r\n'):
+                with self.subTest(router=router, newline=newline):
+                    lines = [reference, 'import "./.next/types/routes.d.ts";', '// local note', '', notice, docs]
+                    source = newline.join(lines) + newline
+                    self.assert_comments('apps/web/next-env.d.ts', source, [(3, 3)])
+                    self.assert_comments('next-env.d.ts', source + '// extra' + newline, [(3, 3), (7, 7)])
+                    self.assert_comments('other.d.ts', source, [(3, 3), (5, 5), (6, 6)])
+                    self.assert_comments('next-env.d.ts', newline.join([notice, docs]), [(1, 1), (2, 2)])
+                    self.assert_comments('next-env.d.ts', source.replace('information.', 'information. Edited'),
+                                         [(3, 3), (5, 5), (6, 6)])
+
     def test_paths_and_known_generator_signature(self):
         for path in ["README.md", "app/vendor/widget.js", "third_party/example.py",
                      "node_modules/module/index.js", "bundle.min.js", "lib/model.generated.ts",
